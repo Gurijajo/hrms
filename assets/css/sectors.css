@@ -10,12 +10,17 @@
     --shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-/* Container and layout */
 .container {
-    max-width: 1200px;
-    margin: 0 auto;
+    max-width: calc(100% - var(--sidebar-width));
+    margin-left: var(--sidebar-width);
     padding: 20px;
     margin-top: 5rem;
+    transition: margin-left var(--transition-speed), max-width var(--transition-speed);
+}
+
+.sidebar-collapsed .container {
+    margin-left: 0;
+    max-width: 100%;
 }
 
 .system-info {

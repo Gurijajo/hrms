@@ -122,3 +122,7 @@ function hashPassword($password) {
     
     return $hashedPassword;
 }
+
+function sanitizeString($str) {
+    return htmlspecialchars(strip_tags(trim($str)), ENT_QUOTES, 'UTF-8');
+}

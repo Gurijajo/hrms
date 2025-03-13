@@ -199,77 +199,14 @@ $recent_requests = $db->query("SELECT lr.*,
                               ORDER BY lr.created_at DESC
                               LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
 ?>
-
+<?php include '../includes/header.php'; ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leave Management - Agroco HRMS</title>
-    <style>
-        /* ... Previous CSS styles ... */
-        .leave-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            margin-bottom: 1rem;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-
-        .status-pending { background: var(--warning); color: var(--dark); }
-        .status-approved { background: var(--success); color: white; }
-        .status-rejected { background: var(--danger); color: white; }
-        .status-cancelled { background: var(--secondary); color: white; }
-
-        .leave-balance {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-top: 0.5rem;
-        }
-
-        .balance-item {
-            padding: 0.5rem 1rem;
-            border-radius: var(--radius);
-            background: var(--light);
-            font-size: 0.875rem;
-        }
-
-        .calendar-view {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 0.5rem;
-            margin-top: 1rem;
-        }
-
-        .calendar-day {
-            aspect-ratio: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: var(--radius);
-            background: var(--light);
-            font-size: 0.875rem;
-        }
-
-        .calendar-day.leave {
-            background: var(--accent);
-            color: white;
-        }
-
-        .calendar-day.weekend {
-            background: var(--border);
-            color: var(--text-light);
-        }
-    </style>
+    
 </head>
 <body>
     <div class="container">

@@ -6,7 +6,19 @@ checkAdminAccess();
 $database = new Database();
 $db = $database->getConnection();
 
-// Handle form submissions
+// ფილტრაციისთვის ყველა სექტორის მიღება
+$sectors_query = "SELECT DISTINCT s.sector_id, s.sector_name 
+                 FROM sectors s 
+                 JOIN users u ON s.sector_id = u.sector_id 
+                 WHERE u.status = 'active' 
+                 ORDER BY s.sector_name";
+$sectors = $db->query($sectors_query)->fetchAll(PDO::FETCH_ASSOC);
+
+// არჩეული სექტორის მიღება (თუ არის)
+$selected_sector = isset($_GET['sector']) ? (int)$_GET['sector'] : 0;
+$form_selected_sector = isset($_POST['form_sector']) ? (int)$_POST['form_sector'] : 0;
+
+// ფორმების გაგზავნის დამუშავება
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
@@ -34,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
 
                 logActivity($db, $_SESSION['user_id'], 'ADD_EXPERIENCE', 
-                          "Added experience record for user ID: $user_id at $company");
+                          "გამოცდილების ჩანაწერი დამატებულია მომხმარებლის ID: $user_id -ზე, კომპანია: $company");
                 break;
 
             case 'add_education':
@@ -61,223 +73,150 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
 
                 logActivity($db, $_SESSION['user_id'], 'ADD_EDUCATION', 
-                          "Added education record for user ID: $user_id at $institution");
+                          "განათლების ჩანაწერი დამატებულია მომხმარებლის ID: $user_id -ზე, დაწესებულება: $institution");
                 break;
         }
         
-        header("Location: experience_education.php");
+        header("Location: manage_experience_education.php" . 
+               ($selected_sector ? "?sector=" . $selected_sector : ""));
         exit();
     }
 }
 
-// Get all employees
-$employees = $db->query("SELECT u.user_id, u.first_name, u.last_name, r.role_name, s.sector_name 
-                        FROM users u 
-                        JOIN roles r ON u.role_id = r.role_id 
-                        JOIN sectors s ON u.sector_id = s.sector_id 
-                        WHERE u.status = 'active' 
-                        ORDER BY s.sector_name, u.first_name, u.last_name")->fetchAll(PDO::FETCH_ASSOC);
+// თანამშრომლების მიღება სექტორის ფილტრის მიხედვით ფორმებისთვის
+$employees_query = "SELECT u.user_id, u.first_name, u.last_name, r.role_name, s.sector_name, s.sector_id
+                   FROM users u 
+                   JOIN roles r ON u.role_id = r.role_id 
+                   JOIN sectors s ON u.sector_id = s.sector_id 
+                   WHERE u.status = 'active' " .
+                   ($form_selected_sector ? "AND s.sector_id = :sector_id " : "") .
+                   "ORDER BY s.sector_name, u.first_name, u.last_name";
+
+$stmt = $db->prepare($employees_query);
+if ($form_selected_sector) {
+    $stmt->bindParam(':sector_id', $form_selected_sector, PDO::PARAM_INT);
+}
+$stmt->execute();
+$employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// ბოლო გამოცდილების ჩანაწერების მიღება (სექტორის ფილტრით)
+$experience_query = "SELECT e.*, 
+                           CONCAT(u.first_name, ' ', u.last_name) as employee_name,
+                           s.sector_name
+                    FROM experience e
+                    JOIN users u ON e.user_id = u.user_id
+                    JOIN sectors s ON u.sector_id = s.sector_id
+                    WHERE 1=1 " . 
+                    ($selected_sector ? "AND u.sector_id = :sector_id " : "") .
+                    "ORDER BY e.created_at DESC 
+                    LIMIT 5";
+
+$stmt = $db->prepare($experience_query);
+if ($selected_sector) {
+    $stmt->bindParam(':sector_id', $selected_sector, PDO::PARAM_INT);
+}
+$stmt->execute();
+$experiences = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// ბოლო განათლების ჩანაწერების მიღება (სექტორის ფილტრით)
+$education_query = "SELECT ed.*, 
+                          CONCAT(u.first_name, ' ', u.last_name) as employee_name,
+                          s.sector_name
+                   FROM education ed
+                   JOIN users u ON ed.user_id = u.user_id
+                   JOIN sectors s ON u.sector_id = s.sector_id
+                   WHERE 1=1 " . 
+                   ($selected_sector ? "AND u.sector_id = :sector_id " : "") .
+                   "ORDER BY ed.created_at DESC 
+                   LIMIT 5";
+
+$stmt = $db->prepare($education_query);
+if ($selected_sector) {
+    $stmt->bindParam(':sector_id', $selected_sector, PDO::PARAM_INT);
+}
+$stmt->execute();
+$education_records = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
+<?php require_once '../includes/header.php'; ?>
+
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ka">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Experience & Education Management - Agroco HRMS</title>
-    <style>
-        :root {
-            --primary: #2c3e50;
-            --secondary: #34495e;
-            --accent: #3498db;
-            --success: #27ae60;
-            --danger: #e74c3c;
-            --warning: #f1c40f;
-            --light: #ecf0f1;
-            --border: #ddd;
-            --shadow: 0 2px 4px rgba(0,0,0,0.1);
-            --radius: 8px;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Inter', sans-serif;
-        }
-
-        body {
-            background: var(--light);
-            color: var(--primary);
-            line-height: 1.6;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .system-header {
-            background: var(--primary);
-            color: white;
-            padding: 1rem;
-            border-radius: var(--radius);
-            margin-bottom: 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .datetime {
-            font-family: 'Roboto Mono', monospace;
-            font-size: 1.1rem;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .page-title {
-            margin-bottom: 2rem;
-            border-bottom: 2px solid var(--accent);
-            padding-bottom: 0.5rem;
-        }
-
-        .tabs {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .tab {
-            padding: 1rem 2rem;
-            background: white;
-            border-radius: var(--radius);
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .tab.active {
-            background: var(--accent);
-            color: white;
-        }
-
-        .form-section {
-            background: white;
-            padding: 2rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            margin-bottom: 2rem;
-        }
-
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-        }
-
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-
-        .form-label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            transition: all 0.3s ease;
-        }
-
-        .form-input:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
-        }
-
-        .records-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-        }
-
-        .record-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-        }
-
-        .record-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: var(--radius);
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .btn-primary {
-            background: var(--accent);
-            color: white;
-        }
-
-        .btn-danger {
-            background: var(--danger);
-            color: white;
-        }
-    </style>
+    <title>გამოცდილებისა და განათლების მენეჯმენტი - Agroco HRMS</title>
 </head>
 <body>
     <div class="container">
         <div class="system-header">
             <div class="datetime" id="currentDateTime">
-                UTC: 2025-03-13 07:21:29
+                UTC: 2025-03-13 12:36:20
             </div>
             <div class="user-info">
-                <span>User:</span>
+                <span>მომხმარებელი:</span>
                 <strong>Gurijajo</strong>
             </div>
         </div>
 
-        <h1 class="page-title">Experience & Education Management</h1>
+        <h1 class="page-title">გამოცდილებისა და განათლების მენეჯმენტი</h1>
 
-        <div class="tabs">
-            <div class="tab active" onclick="switchTab('experience')">Work Experience</div>
-            <div class="tab" onclick="switchTab('education')">Education</div>
+        <!-- სექტორის ფილტრაცია -->
+        <div class="filter-section">
+            <form method="GET" action="" class="filter-form">
+                <div class="form-group" style="margin-bottom: 2rem;">
+                    <label class="form-label">ჩანაწერების ფილტრაცია სექტორის მიხედვით:</label>
+                    <div class="filter-controls">
+                        <select name="sector" class="form-input" style="max-width: 300px;" onchange="this.form.submit()">
+                            <option value="0">ყველა სექტორი</option>
+                            <?php foreach ($sectors as $sector): ?>
+                                <option value="<?php echo $sector['sector_id']; ?>" 
+                                        <?php echo $selected_sector == $sector['sector_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($sector['sector_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <?php if ($selected_sector): ?>
+                            <a href="?sector=0" class="btn btn-secondary">ფილტრის გასუფთავება</a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </form>
         </div>
 
-        <!-- Experience Form -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('experience')">სამუშაო გამოცდილება</div>
+            <div class="tab" onclick="switchTab('education')">განათლება</div>
+        </div>
+        <!-- სამუშაო გამოცდილების ფორმა -->
         <div id="experienceForm" class="form-section">
-            <h2>Add Work Experience</h2>
+            <h2>სამუშაო გამოცდილების დამატება</h2>
             <form method="POST" action="">
                 <input type="hidden" name="action" value="add_experience">
                 
                 <div class="form-grid">
+                    <!-- თანამშრომლების ფილტრაცია სექტორის მიხედვით -->
                     <div class="form-group">
-                        <label class="form-label">Employee</label>
-                        <select name="user_id" class="form-input" required>
+                        <label class="form-label">თანამშრომლების ფილტრაცია სექტორის მიხედვით</label>
+                        <select name="form_sector" class="form-input" onchange="filterEmployees(this.value, 'experience')">
+                            <option value="0">ყველა სექტორი</option>
+                            <?php foreach ($sectors as $sector): ?>
+                                <option value="<?php echo $sector['sector_id']; ?>" 
+                                        <?php echo $form_selected_sector == $sector['sector_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($sector['sector_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <!-- თანამშრომლის არჩევა -->
+                    <div class="form-group">
+                        <label class="form-label">თანამშრომელი</label>
+                        <select name="user_id" class="form-input" id="experienceEmployeeSelect" required>
+                            <option value="">აირჩიეთ თანამშრომელი</option>
                             <?php foreach ($employees as $employee): ?>
-                                <option value="<?php echo $employee['user_id']; ?>">
+                                <option value="<?php echo $employee['user_id']; ?>" 
+                                        data-sector="<?php echo $employee['sector_id']; ?>">
                                     <?php echo htmlspecialchars($employee['first_name'] . ' ' . 
                                           $employee['last_name'] . ' (' . $employee['sector_name'] . ')'); ?>
                                 </option>
@@ -286,47 +225,64 @@ $employees = $db->query("SELECT u.user_id, u.first_name, u.last_name, r.role_nam
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Company Name</label>
+                        <label class="form-label">კომპანიის სახელი</label>
                         <input type="text" name="company_name" class="form-input" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Position</label>
+                        <label class="form-label">პოზიცია</label>
                         <input type="text" name="position" class="form-input" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Start Date</label>
+                        <label class="form-label">დაწყების თარიღი</label>
                         <input type="date" name="start_date" class="form-input" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">End Date</label>
+                        <label class="form-label">დასრულების თარიღი</label>
                         <input type="date" name="end_date" class="form-input">
                     </div>
 
                     <div class="form-group" style="grid-column: 1 / -1;">
-                        <label class="form-label">Description</label>
+                        <label class="form-label">აღწერა</label>
                         <textarea name="description" class="form-input" rows="4"></textarea>
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary">Add Experience</button>
+                <button type="submit" class="btn btn-primary">გამოცდილების დამატება</button>
             </form>
         </div>
 
-        <!-- Education Form -->
+        <!-- განათლების ფორმა -->
         <div id="educationForm" class="form-section" style="display: none;">
-            <h2>Add Education</h2>
+            <h2>განათლების დამატება</h2>
             <form method="POST" action="">
                 <input type="hidden" name="action" value="add_education">
                 
                 <div class="form-grid">
+                    <!-- თანამშრომლების ფილტრაცია სექტორის მიხედვით -->
                     <div class="form-group">
-                        <label class="form-label">Employee</label>
-                        <select name="user_id" class="form-input" required>
+                        <label class="form-label">თანამშრომლების ფილტრაცია სექტორის მიხედვით</label>
+                        <select name="form_sector" class="form-input" onchange="filterEmployees(this.value, 'education')">
+                            <option value="0">ყველა სექტორი</option>
+                            <?php foreach ($sectors as $sector): ?>
+                                <option value="<?php echo $sector['sector_id']; ?>" 
+                                        <?php echo $form_selected_sector == $sector['sector_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($sector['sector_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <!-- თანამშრომლის არჩევა -->
+                    <div class="form-group">
+                        <label class="form-label">თანამშრომელი</label>
+                        <select name="user_id" class="form-input" id="educationEmployeeSelect" required>
+                            <option value="">აირჩიეთ თანამშრომელი</option>
                             <?php foreach ($employees as $employee): ?>
-                                <option value="<?php echo $employee['user_id']; ?>">
+                                <option value="<?php echo $employee['user_id']; ?>" 
+                                        data-sector="<?php echo $employee['sector_id']; ?>">
                                     <?php echo htmlspecialchars($employee['first_name'] . ' ' . 
                                           $employee['last_name'] . ' (' . $employee['sector_name'] . ')'); ?>
                                 </option>
@@ -335,69 +291,109 @@ $employees = $db->query("SELECT u.user_id, u.first_name, u.last_name, r.role_nam
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Institution</label>
+                        <label class="form-label">სასწავლო დაწესებულება</label>
                         <input type="text" name="institution" class="form-input" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Degree</label>
+                        <label class="form-label">დიპლომი</label>
                         <input type="text" name="degree" class="form-input" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Field of Study</label>
+                        <label class="form-label">სასწავლო მიმართულება</label>
                         <input type="text" name="field_of_study" class="form-input" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Start Date</label>
+                        <label class="form-label">დაწყების თარიღი</label>
                         <input type="date" name="start_date" class="form-input" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">End Date</label>
+                        <label class="form-label">დასრულების თარიღი</label>
                         <input type="date" name="end_date" class="form-input">
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary">Add Education</button>
+                <button type="submit" class="btn btn-primary">განათლების დამატება</button>
             </form>
         </div>
 
-        <!-- Records Display -->
+        <!-- ჩანაწერების ჩვენება -->
         <div class="records-section">
-            <h2>Recent Records</h2>
-            <div class="records-grid">
-                <?php
-                // Get recent experience records
-                $query = "SELECT e.*, 
-                                CONCAT(u.first_name, ' ', u.last_name) as employee_name 
-                         FROM experience e
-                         JOIN users u ON e.user_id = u.user_id
-                         ORDER BY e.created_at DESC LIMIT 5";
-                $experiences = $db->query($query)->fetchAll(PDO::FETCH_ASSOC);
-
-                foreach ($experiences as $exp):
-                ?>
-                <div class="record-card">
-                    <div class="record-header">
-                        <h3><?php echo htmlspecialchars($exp['company_name']); ?></h3>
-                        <span><?php echo htmlspecialchars($exp['employee_name']); ?></span>
+            <h2>ბოლო ჩანაწერები</h2>
+            
+            <!-- გამოცდილების ჩანაწერები -->
+            <div id="experienceRecords" class="records-grid">
+                <?php if (empty($experiences)): ?>
+                    <div class="no-records">არჩეულ სექტორში გამოცდილების ჩანაწერები ვერ მოიძებნა.</div>
+                <?php else: ?>
+                    <?php foreach ($experiences as $exp): ?>
+                    <div class="record-card">
+                        <div class="record-header">
+                            <h3><?php echo htmlspecialchars($exp['company_name']); ?></h3>
+                            <span class="sector-badge"><?php echo htmlspecialchars($exp['sector_name']); ?></span>
+                        </div>
+                        <p class="employee-name"><?php echo htmlspecialchars($exp['employee_name']); ?></p>
+                        <p><strong>პოზიცია:</strong> <?php echo htmlspecialchars($exp['position']); ?></p>
+                        <p><strong>პერიოდი:</strong> <?php echo htmlspecialchars($exp['start_date']); ?> - 
+                           <?php echo $exp['end_date'] ? htmlspecialchars($exp['end_date']) : 'მიმდინარე'; ?></p>
+                        <p><?php echo htmlspecialchars($exp['description']); ?></p>
                     </div>
-                    <p><strong>Position:</strong> <?php echo htmlspecialchars($exp['position']); ?></p>
-                    <p><strong>Period:</strong> <?php echo htmlspecialchars($exp['start_date']); ?> - 
-                       <?php echo $exp['end_date'] ? htmlspecialchars($exp['end_date']) : 'Present'; ?></p>
-                    <p><?php echo htmlspecialchars($exp['description']); ?></p>
-                </div>
-                <?php endforeach; ?>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+
+            <!-- განათლების ჩანაწერები -->
+            <div id="educationRecords" class="records-grid" style="display: none;">
+                <?php if (empty($education_records)): ?>
+                    <div class="no-records">არჩეულ სექტორში განათლების ჩანაწერები ვერ მოიძებნა.</div>
+                <?php else: ?>
+                    <?php foreach ($education_records as $edu): ?>
+                    <div class="record-card">
+                        <div class="record-header">
+                            <h3><?php echo htmlspecialchars($edu['institution']); ?></h3>
+                            <span class="sector-badge"><?php echo htmlspecialchars($edu['sector_name']); ?></span>
+                        </div>
+                        <p class="employee-name"><?php echo htmlspecialchars($edu['employee_name']); ?></p>
+                        <p><strong>დიპლომი:</strong> <?php echo htmlspecialchars($edu['degree']); ?></p>
+                        <p><strong>სასწავლო მიმართულება:</strong> <?php echo htmlspecialchars($edu['field_of_study']); ?></p>
+                        <p><strong>პერიოდი:</strong> <?php echo htmlspecialchars($edu['start_date']); ?> - 
+                           <?php echo $edu['end_date'] ? htmlspecialchars($edu['end_date']) : 'მიმდინარე'; ?></p>
+                    </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 
     <script>
+    function filterEmployees(sectorId, formType) {
+        const selectElement = document.getElementById(formType + 'EmployeeSelect');
+        const options = selectElement.getElementsByTagName('option');
+        
+        for (let option of options) {
+            if (option.value === "") continue; // თანადგომა: ადგილობრივი ოფცია გამოტოვეთ
+            
+            const employeeSector = option.getAttribute('data-sector');
+            if (sectorId === "0" || employeeSector === sectorId) {
+                option.style.display = "";
+            } else {
+                option.style.display = "none";
+            }
+        }
+        
+        // აღადგინე არჩევანი, თუ მიმდინარე არჩევანი დამალულია
+        if (selectElement.selectedOptions[0].style.display === "none") {
+            selectElement.value = "";
+        }
+    }
+
     function switchTab(tab) {
         const tabs = document.querySelectorAll('.tab');
         const forms = document.querySelectorAll('.form-section');
+        const currentSector = new URLSearchParams(window.location.search).get('sector') || '0';
         
         tabs.forEach(t => t.classList.remove('active'));
         event.target.classList.add('active');
@@ -405,18 +401,21 @@ $employees = $db->query("SELECT u.user_id, u.first_name, u.last_name, r.role_nam
         if (tab === 'experience') {
             document.getElementById('experienceForm').style.display = 'block';
             document.getElementById('educationForm').style.display = 'none';
+            document.getElementById('experienceRecords').style.display = 'grid';
+            document.getElementById('educationRecords').style.display = 'none';
         } else {
             document.getElementById('experienceForm').style.display = 'none';
             document.getElementById('educationForm').style.display = 'block';
+            document.getElementById('experienceRecords').style.display = 'none';
+            document.getElementById('educationRecords').style.display = 'grid';
         }
     }
 
-    // Initialize datetime display
     function updateDateTime() {
-        document.getElementById('currentDateTime').textContent = 'UTC: 2025-03-13 07:21:29';
+        document.getElementById('currentDateTime').textContent = 'UTC: 2025-03-13 12:39:10';
     }
 
-    // Initialize page
+    // გვერდის ინიციალიზაცია
     updateDateTime();
     </script>
 </body>

@@ -6,7 +6,7 @@ checkAdminAccess();
 $database = new Database();
 $db = $database->getConnection();
 
-// // Log activity function
+// აქტივობის ლოგირების ფუნქცია
 // function logActivity($db, $user_id, $action, $details) {
 //     $query = "INSERT INTO activity_logs (user_id, action_type, action_details, ip_address) 
 //               VALUES (:user_id, :action, :details, :ip)";
@@ -19,7 +19,7 @@ $db = $database->getConnection();
 //     ]);
 // }
 
-// Handle form submissions
+// ფორმების გაგზავნის დამუშავება
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $attendance_id = $_POST['attendance_id'];
                 $sector_id = $_POST['sector_id'];
                 
-                // Get sector's working hours
+                // სექტის სამუშაო საათების მიღება
                 $stmt = $db->prepare("SELECT working_hours FROM sector_schedules WHERE sector_id = ?");
                 $stmt->execute([$sector_id]);
                 $sector_hours = $stmt->fetch(PDO::FETCH_COLUMN);
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 
                 logActivity($db, $_SESSION['user_id'], 'ATTENDANCE_APPROVE', 
-                          "Approved full workday for attendance ID: $attendance_id");
+                          "სრული სამუშაო დღე დამტკიცებულია, ჩანაწერი ID: $attendance_id");
                 break;
 
             case 'adjust_hours':
@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 
                 logActivity($db, $_SESSION['user_id'], 'HOURS_ADJUST', 
-                          "Adjusted hours by $adjustment for attendance ID: $attendance_id");
+                          "სამუშაო საათები შეიცვალა $adjustment-ით, ჩანაწერი ID: $attendance_id");
                 break;
 
             case 'mark_absent':
@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 
                 logActivity($db, $_SESSION['user_id'], 'MARK_ABSENT', 
-                          "Marked absent for user ID: $user_id on date: $date");
+                          "მომხმარებელი ID: $user_id, თარიღი: $date - მიუთითეს 'არა ყოფნა'");
                 break;
         }
         
@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get employees for dropdown
+// თანამშრომლების მიღება ჩამdropdown-სთვის
 $employees = $db->query("SELECT u.user_id, u.first_name, u.last_name, r.role_name, s.sector_name 
                         FROM users u 
                         JOIN roles r ON u.role_id = r.role_id 
@@ -109,14 +109,16 @@ $employees = $db->query("SELECT u.user_id, u.first_name, u.last_name, r.role_nam
                         ORDER BY s.sector_name, u.first_name, u.last_name")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
+<?php require '../includes/header.php'; ?>
+
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ka">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Attendance Management - Agroco HRMS</title>
+    <title>მ उपस्थितობის მენეჯმენტი - Agroco HRMS</title>
     <style>
-    /* ... Previous CSS styles ... */
+    /* ... წინა CSS სტილები ... */
 
     .action-panel {
         background: white;
@@ -160,30 +162,30 @@ $employees = $db->query("SELECT u.user_id, u.first_name, u.last_name, r.role_nam
 </head>
 <body>
     <div class="container">
-        <!-- System Header with Current Time and User -->
+        <!-- სისტემის სათაური: მიმდინარე დრო და მომხმარებელი -->
         <div class="system-header">
             <div class="datetime" id="currentDateTime">
                 UTC: 2025-03-13 07:14:26
             </div>
             <div class="user-info">
-                <span>User:</span>
+                <span>მომხმარებელი:</span>
                 <strong>Gurijajo</strong>
             </div>
         </div>
 
-        <h1>Attendance Management</h1>
+        <h1>დასწრების მენეჯმენტი</h1>
 
-        <!-- Quick Actions Panel -->
+        <!-- სწრაფი მოქმედებების პანელი -->
         <div class="action-panel">
-            <h2>Quick Actions</h2>
+            <h2>სწრაფი მოქმედებები</h2>
             <div class="action-grid">
-                <!-- Approve Full Workday -->
+                <!-- სრული სამუშაო დღის დამტკიცება -->
                 <div class="action-card">
-                    <h3>Approve Full Workday</h3>
+                    <h3>სრული სამუშაო დღის დამტკიცება</h3>
                     <form method="POST" action="">
                         <input type="hidden" name="action" value="approve_workday">
                         <div class="form-group">
-                            <label>Select Employee</label>
+                            <label>აირჩიეთ თანამშრომელი</label>
                             <select name="user_id" class="form-input" required>
                                 <?php foreach ($employees as $employee): ?>
                                     <option value="<?php echo $employee['user_id']; ?>">
@@ -194,21 +196,21 @@ $employees = $db->query("SELECT u.user_id, u.first_name, u.last_name, r.role_nam
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Date</label>
+                            <label>თარიღი</label>
                             <input type="date" name="date" class="form-input" 
                                    value="<?php echo date('Y-m-d'); ?>" required>
                         </div>
-                        <button type="submit" class="btn btn-success">Approve Full Day</button>
+                        <button type="submit" class="btn btn-success">სრული დღის დამტკიცება</button>
                     </form>
                 </div>
 
-                <!-- Adjust Hours -->
+                <!-- სამუშაო საათების ცვლილება -->
                 <div class="action-card">
-                    <h3>Adjust Working Hours</h3>
+                    <h3>სამუშაო საათების ცვლილება</h3>
                     <form method="POST" action="">
                         <input type="hidden" name="action" value="adjust_hours">
                         <div class="form-group">
-                            <label>Select Record</label>
+                            <label>აირჩიეთ ჩანაწერი</label>
                             <select name="attendance_id" class="form-input" required>
                                 <?php
                                 $records = $db->query("SELECT a.attendance_id, a.date, 
@@ -230,7 +232,7 @@ $employees = $db->query("SELECT u.user_id, u.first_name, u.last_name, r.role_nam
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Adjustment (Hours)</label>
+                            <label>შეცვლა (საათი)</label>
                             <div class="adjustment-controls">
                                 <button type="button" onclick="adjustHours(-1)">-1</button>
                                 <input type="number" name="adjustment_hours" id="adjustmentHours" 
@@ -239,20 +241,20 @@ $employees = $db->query("SELECT u.user_id, u.first_name, u.last_name, r.role_nam
                             </div>
                         </div>
                         <div class="form-group">
-                            <label>Reason for Adjustment</label>
+                            <label>შეცვლის მიზეზი</label>
                             <textarea name="adjustment_reason" class="reason-input" required></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary">Apply Adjustment</button>
+                        <button type="submit" class="btn btn-primary">შეცვლის განხორციელება</button>
                     </form>
                 </div>
 
-                <!-- Mark Absent -->
+                <!-- არა ყოფნის მითითება -->
                 <div class="action-card">
-                    <h3>Mark Absent</h3>
+                    <h3>არა ყოფნის მითითება</h3>
                     <form method="POST" action="">
                         <input type="hidden" name="action" value="mark_absent">
                         <div class="form-group">
-                            <label>Select Employee</label>
+                            <label>აირჩიეთ თანამშრომელი</label>
                             <select name="user_id" class="form-input" required>
                                 <?php foreach ($employees as $employee): ?>
                                     <option value="<?php echo $employee['user_id']; ?>">
@@ -263,31 +265,31 @@ $employees = $db->query("SELECT u.user_id, u.first_name, u.last_name, r.role_nam
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Date</label>
+                            <label>თარიღი</label>
                             <input type="date" name="date" class="form-input" 
                                    value="<?php echo date('Y-m-d'); ?>" required>
                         </div>
                         <div class="form-group">
-                            <label>Reason for Absence</label>
+                            <label>არა ყოფნის მიზეზი</label>
                             <textarea name="absence_reason" class="reason-input" required></textarea>
                         </div>
-                        <button type="submit" class="btn btn-danger">Mark as Absent</button>
+                        <button type="submit" class="btn btn-danger">არა ყოფნის მითითება</button>
                     </form>
                 </div>
             </div>
         </div>
 
-        <!-- Recent Activity Log -->
+        <!-- ბოლო m არსებული აქტივობა -->
         <div class="activity-log">
-            <h2>Recent Attendance Activity</h2>
+            <h2>ბოლო მ उपस्थितობის აქტივობა</h2>
             <table class="table">
                 <thead>
                     <tr>
-                        <th>Date/Time</th>
-                        <th>Employee</th>
-                        <th>Action</th>
-                        <th>Modified By</th>
-                        <th>Details</th>
+                        <th>თარიღი/დრო</th>
+                        <th>თანამშრომელი</th>
+                        <th>მოქმედება</th>
+                        <th>განახლებული პირი</th>
+                        <th>დეტალები</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -320,20 +322,20 @@ $employees = $db->query("SELECT u.user_id, u.first_name, u.last_name, r.role_nam
     </div>
 
     <script>
-    // Update datetime display
+    // დროის გამოჩენის განახლება
     function updateDateTime() {
         const dateTimeElement = document.getElementById('currentDateTime');
         dateTimeElement.textContent = 'UTC: 2025-03-13 07:14:26';
     }
 
-    // Hours adjustment function
+    // საათების ცვლილების ფუნქცია
     function adjustHours(value) {
         const input = document.getElementById('adjustmentHours');
         let newValue = parseFloat(input.value) + value;
         input.value = Math.max(-12, Math.min(12, newValue));
     }
 
-    // Initialize datetime
+    // დროის ინიციალიზაცია
     updateDateTime();
     </script>
 </body>

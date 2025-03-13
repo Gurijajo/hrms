@@ -94,7 +94,7 @@ $users = $db->query("SELECT user_id, username, first_name, last_name
     </style>
 </head>
 <body>
-
+        <div class="container">
         <h1>Activity Logs</h1>
 
         <!-- Filters -->
@@ -218,6 +218,7 @@ $users = $db->query("SELECT user_id, username, first_name, last_name
             <pre></pre>
         </div>
         <button class="btn btn-secondary" onclick="hideValues()">Close</button>
+    </div>
     </div>
 
     <script>

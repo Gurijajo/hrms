@@ -1,218 +1,197 @@
 <?php
 require_once __DIR__ . '/functions.php';
 
+// შეამოწმეთ მომხმარებლის ავტორიზაცია
 checkLogin();
 
-// Get current page for active menu highlighting
+// მიიღეთ მიმდინარე გვერდი აქტიური მენიუს დასათვალიერებლად
 $current_page = basename($_SERVER['PHP_SELF'], '.php');
+
+// დაარეგულირეთ მნიშვნელოვანი ცვლადები
+$page_title = $page_title ?? 'ადმინისტრატორის პანელი';
+$username = htmlspecialchars($_SESSION['username'] ?? 'სტუმარი');
+
+// მიიღეთ მიმდინარე UTC დრო
+$current_utc = gmdate('Y-m-d H:i:s');
+
+// ფუნქცია, რათა შევამოწმოთ, არის თუ არა მენიუ აქტიური
+function isActiveMenu($page, $current) {
+    return $page === $current ? 'active' : '';
+}
+
+// მენიუს სტრუქტურა
+$menuStructure = [
+    'dashboard' => [
+        'title' => 'მთავარი',
+        'items' => [
+            ['href' => '/admin/dashboard.php', 'icon' => 'fas fa-home', 'text' => 'მთავარი პანელი']
+        ]
+    ],
+    'employee' => [
+        'title' => 'მუშაკების მართვა',
+        'items' => [
+            ['href' => '/admin/users.php', 'icon' => 'fas fa-users', 'text' => 'მომხმარებლები'],
+            ['href' => '/admin/sectors.php', 'icon' => 'fas fa-building', 'text' => 'სექტორები'],
+            ['href' => '/admin/manage_experience_education.php', 'icon' => 'fas fa-briefcase', 'text' => 'გამოცდილება/განათლება']
+        ]
+    ],
+    'attendance' => [
+        'title' => 'წამყვანი და შვებულება',
+        'items' => [
+            ['href' => '/admin/attendance.php', 'icon' => 'fas fa-clock', 'text' => 'წამყვანი'],
+            ['href' => '/admin/manage_attendance.php', 'icon' => 'fas fa-calendar-check', 'text' => 'გადახედვა წამყვანს'],
+            ['href' => '/admin/leave_management.php', 'icon' => 'fas fa-calendar-alt', 'text' => 'შვებულების მართვა'],
+            ['href' => '/admin/leave_balance.php', 'icon' => 'fas fa-balance-scale', 'text' => 'შვებულების ბალანსი']
+        ]
+    ],
+    'payroll' => [
+        'title' => 'ხელფასების მართვა',
+        'items' => [
+            ['href' => '/admin/salaries.php', 'icon' => 'fas fa-money-bill-wave', 'text' => 'ხელფასები'],
+            ['href' => '/admin/bonus_activities.php', 'icon' => 'fas fa-gift', 'text' => 'ბონუსების აქტივობები'],
+            ['href' => '/admin/tax_deduction.php', 'icon' => 'fas fa-percent', 'text' => 'ბეგარის შეწყვეტა'],
+            ['href' => '/admin/salary_slips.php', 'icon' => 'fas fa-file-invoice-dollar', 'text' => 'ხელფასის სლიპები']
+        ]
+    ],
+    'loans' => [
+        'title' => 'სესხები და წინასწარი გადასახდელები',
+        'items' => [
+            ['href' => '/admin/loans_advance.php', 'icon' => 'fas fa-hand-holding-usd', 'text' => 'სესხები და წინასწარი გადასახდელები']
+        ]
+    ],
+    'system' => [
+        'title' => 'სისტემა',
+        'items' => [
+            ['href' => '/admin/work_schedules.php', 'icon' => 'fas fa-calendar-week', 'text' => 'სამუშაო გრაფიკები'],
+            ['href' => '/admin/activity_logs.php', 'icon' => 'fas fa-history', 'text' => 'აქტივობის ჩანაწერები']
+        ]
+    ]
+];
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ka">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $page_title ?? 'Admin Panel'; ?> - Agroco HRMS</title>
-    <link rel="stylesheet" href="../assets/css/header.css">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="Agroco HRMS - ადამიანური რესურსების მართვის სისტემა">
+    <title><?php echo $page_title; ?> - Agroco HRMS</title>
+    
+    <!-- ფავიკონი -->
+    <link rel="icon" type="image/x-icon" href="/assets/images/favicon.ico">
+    
+    <!-- CSS დამოკიდებულებები -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        
-    </style>
+    <link rel="stylesheet" href="/assets/css/header.css">
 </head>
 <body class="sidebar-visible">
-    <!-- Header -->
+    <!-- სათაური -->
     <header class="header">
         <div class="header-left">
-            <button class="menu-toggle">
+            <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Toggle Sidebar">
                 <i class="fas fa-bars"></i>
             </button>
         </div>
         <div class="header-right">
             <div class="user-info">
                 <i class="fas fa-user"></i>
-                <span><?php echo htmlspecialchars($_SESSION['username'] ?? 'Gurijajo'); ?></span>
+                <span><?php echo $username; ?></span>
             </div>
-            <a href="../auth/logout.php" class="btn btn-danger">
+            <a href="../auth/logout.php" class="btn btn-danger" title="გამოსვლა">
                 <i class="fas fa-sign-out-alt"></i>
-                Logout
+                <span>გამოსვლა</span>
             </a>
         </div>
     </header>
 
-    <!-- Sidebar -->
+    <!-- გვერდის მენიუ -->
     <aside class="sidebar">
-        <!-- Dashboard Section -->
-        <div class="nav-section">
-            <ul class="nav-list">
-                <li class="nav-item">
-                    <a href="/admin/dashboard.php" class="nav-link <?php echo $current_page === 'dashboard' ? 'active' : ''; ?>">
-                        <i class="fas fa-home"></i>
-                        <span>Dashboard</span>
-                    </a>
-                </li>
-            </ul>
-        </div>
-
-        <!-- Employee Management -->
-        <div class="nav-section">
-            <div class="nav-section-title">Employee Management</div>
-            <ul class="nav-list">
-                <li class="nav-item">
-                    <a href="/admin/users.php" class="nav-link <?php echo $current_page === 'users' ? 'active' : ''; ?>">
-                        <i class="fas fa-users"></i>
-                        <span>Users</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/admin/sectors.php" class="nav-link <?php echo $current_page === 'sectors' ? 'active' : ''; ?>">
-                        <i class="fas fa-building"></i>
-                        <span>Sectors</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/admin/manage_experience_education.php" class="nav-link <?php echo $current_page === 'education' ? 'active' : ''; ?>">
-                        <i class="fas fa-graduation-cap"></i>
-                        <span>Education</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/admin/manage_experience_education.php" class="nav-link <?php echo $current_page === 'experience' ? 'active' : ''; ?>">
-                        <i class="fas fa-briefcase"></i>
-                        <span>Experience</span>
-                    </a>
-                </li>
-            </ul>
-        </div>
-
-        <!-- Attendance & Leave -->
-        <div class="nav-section">
-            <div class="nav-section-title">Attendance & Leave</div>
-            <ul class="nav-list">
-                <li class="nav-item">
-                    <a href="/admin/attendance.php" class="nav-link <?php echo $current_page === 'attendance' ? 'active' : ''; ?>">
-                        <i class="fas fa-clock"></i>
-                        <span>Attendance</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/admin/manage_attendance.php" class="nav-link <?php echo $current_page === 'manage_attendance' ? 'active' : ''; ?>">
-                        <i class="fas fa-calendar-check"></i>
-                        <span>Manage Attendance</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/admin/leave_management.php" class="nav-link <?php echo $current_page === 'leave_management' ? 'active' : ''; ?>">
-                        <i class="fas fa-calendar-alt"></i>
-                        <span>Leave Management</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/admin/leave_balance.php" class="nav-link <?php echo $current_page === 'leave_balance' ? 'active' : ''; ?>">
-                        <i class="fas fa-balance-scale"></i>
-                        <span>Leave Balance</span>
-                    </a>
-                </li>
-            </ul>
-        </div>
-
-        <!-- Payroll Management -->
-        <div class="nav-section">
-            <div class="nav-section-title">Payroll Management</div>
-            <ul class="nav-list">
-                <li class="nav-item">
-                    <a href="/admin/salaries.php" class="nav-link <?php echo $current_page === 'salaries' ? 'active' : ''; ?>">
-                        <i class="fas fa-money-bill-wave"></i>
-                        <span>Salaries</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/admin/bonus_activities.php" class="nav-link <?php echo $current_page === 'bonus_activities' ? 'active' : ''; ?>">
-                        <i class="fas fa-gift"></i>
-                        <span>Bonus Activities</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/admin/tax_deduction.php" class="nav-link <?php echo $current_page === 'tax_deduction' ? 'active' : ''; ?>">
-                        <i class="fas fa-percent"></i>
-                        <span>Tax Deduction</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/admin/salary_slips.php" class="nav-link <?php echo $current_page === 'salary_slips' ? 'active' : ''; ?>">
-                        <i class="fas fa-file-invoice-dollar"></i>
-                        <span>Salary Slips</span>
-                    </a>
-                </li>
-            </ul>
-        </div>
-
-        <!-- Loans & Advances -->
-        <div class="nav-section">
-            <div class="nav-section-title">Loans & Advances</div>
-            <ul class="nav-list">
-                <li class="nav-item">
-                    <a href="/admin/loans_advance.php" class="nav-link <?php echo $current_page === 'loans_advance' ? 'active' : ''; ?>">
-                        <i class="fas fa-hand-holding-usd"></i>
-                        <span>Loans & Advances</span>
-                    </a>
-                </li>
-            </ul>
-        </div>
-
-        <!-- System -->
-        <div class="nav-section">
-            <div class="nav-section-title">System</div>
-            <ul class="nav-list">
-                <li class="nav-item">
-                    <a href="/admin/work_schedules.php" class="nav-link <?php echo $current_page === 'work_schedules' ? 'active' : ''; ?>">
-                        <i class="fas fa-calendar-week"></i>
-                        <span>Work Schedules</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/admin/activity_logs.php" class="nav-link <?php echo $current_page === 'activity_logs' ? 'active' : ''; ?>">
-                        <i class="fas fa-history"></i>
-                        <span>Activity Logs</span>
-                    </a>
-                </li>
-            </ul>
-        </div>
+        <?php foreach ($menuStructure as $section): ?>
+            <div class="nav-section">
+                <?php if (isset($section['title'])): ?>
+                    <div class="nav-section-title"><?php echo $section['title']; ?></div>
+                <?php endif; ?>
+                <ul class="nav-list">
+                    <?php foreach ($section['items'] as $item): 
+                        $current = basename($item['href'], '.php');
+                    ?>
+                        <li class="nav-item">
+                            <a href="<?php echo $item['href']; ?>" 
+                               class="nav-link <?php echo isActiveMenu($current, $current_page); ?>"
+                               title="<?php echo $item['text']; ?>">
+                                <i class="<?php echo $item['icon']; ?>"></i>
+                                <span><?php echo $item['text']; ?></span>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endforeach; ?>
     </aside>
 
-   
+<script>
+    // გვერდის მენიუს გადატრიალება ფუნქცია
+function toggleSidebar() {
+    document.body.classList.toggle('sidebar-collapsed');
+    document.body.classList.toggle('sidebar-visible');
+    
+    // შენახვა გვერდის მდგომარეობის localStorage-ში
+    const isSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+    localStorage.setItem('sidebarCollapsed', isSidebarCollapsed);
+}
 
+// დროის განახლების ფუნქცია
+function updateDateTime() {
+    const now = new Date();
+    const utcYear = now.getUTCFullYear();
+    const utcMonth = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const utcDay = String(now.getUTCDate()).padStart(2, '0');
+    const utcHours = String(now.getUTCHours()).padStart(2, '0');
+    const utcMinutes = String(now.getUTCMinutes()).padStart(2, '0');
+    const utcSeconds = String(now.getUTCSeconds()).padStart(2, '0');
+    
+    const formattedDateTime = `${utcYear}-${utcMonth}-${utcDay} ${utcHours}:${utcMinutes}:${utcSeconds}`;
+    document.getElementById('currentDateTime').textContent = `UTC: ${formattedDateTime}`;
+}
 
-    <script>
-document.addEventListener("DOMContentLoaded", function() {
-    const menuToggle = document.querySelector(".menu-toggle");
-    const body = document.body;
+// დაწყება დოკუმენტის დატვირთვისას
+document.addEventListener('DOMContentLoaded', function() {
+    // შეამოწმეთ თუ მენიუა გახსნილი
+    const isSidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+    if (isSidebarCollapsed) {
+        document.body.classList.add('sidebar-collapsed');
+        document.body.classList.remove('sidebar-visible');
+    }
 
-    menuToggle.addEventListener("click", function() {
-        if (window.innerWidth <= 768) {
-            // Mobile behavior - toggle sidebar-visible class
-            body.classList.toggle('sidebar-visible');
-        } else {
-            // Desktop behavior - toggle sidebar-collapsed class
-            body.classList.toggle('sidebar-collapsed');
-        }
-    });
+    // განაახლეთ დრო ახლა და შემდეგ თითოეულ წამში
+    updateDateTime();
+    setInterval(updateDateTime, 1000);
 
-    // Handle window resize
+    // დაამატეთ მოვლენის მოსმენა ეკრანის ზომის ცვლილებისთვის
+    let windowWidth = window.innerWidth;
     window.addEventListener('resize', function() {
-        if (window.innerWidth > 768) {
-            // Remove mobile class when switching to desktop
-            body.classList.remove('sidebar-visible');
-        } else {
-            // Remove desktop class when switching to mobile
-            body.classList.remove('sidebar-collapsed');
+        if (window.innerWidth !== windowWidth) {
+            windowWidth = window.innerWidth;
+            if (windowWidth <= 768) {
+                document.body.classList.remove('sidebar-visible');
+                document.body.classList.add('sidebar-collapsed');
+            }
         }
     });
 });
-    function updateDateTime() {
-        document.getElementById('currentDateTime').textContent = 'UTC: <?php echo $current_utc; ?>';
-    }
 
-    // Initialize
-    updateDateTime();
-    </script>
+// sidebar-ის დაკეტვა როდესაც კლიკავთ მასზე მობილურ მოწყობილობაზე
+document.addEventListener('click', function(event) {
+    if (window.innerWidth <= 768) {
+        const sidebar = document.querySelector('.sidebar');
+        const menuToggle = document.querySelector('.menu-toggle');
+        
+        if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
+            document.body.classList.remove('sidebar-visible');
+            document.body.classList.add('sidebar-collapsed');
+        }
+    }
+});
+</script>
 </body>
 </html>
